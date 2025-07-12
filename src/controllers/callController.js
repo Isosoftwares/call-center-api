@@ -103,16 +103,14 @@ const getCallHistory = async (req, res) => {
       phoneNumber,
       startDate,
       endDate,
-      agentId
+      agentId,
     } = req.query;
-
+    console.log(req.query);
     // Build filter
-    const filter = {  };
+    const filter = {};
     if (agentId) {
       filter.assignedAgent = mongoose.Types.ObjectId(agentId);
     }
-
-    console.log("📜 Call history filter:", filter, agentId);
 
     if (status) filter.status = status;
     if (phoneNumber)
@@ -122,12 +120,13 @@ const getCallHistory = async (req, res) => {
       if (startDate) filter["callDetails.startTime"].$gte = new Date(startDate);
       if (endDate) filter["callDetails.startTime"].$lte = new Date(endDate);
     }
+    console.log("📜 Call history filter:", filter, agentId);
 
     const calls = await Call.find(filter)
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
-      .populate("agentInfo.agentId", "username profile");
+      .populate("assignedAgent", "username profile");
 
     const total = await Call.countDocuments(filter);
 
@@ -268,10 +267,11 @@ const handleIncomingCall = async (req, res) => {
       twiml.say("Please hold while we connect you to agent Antony Njenga.");
       twiml.enqueue("support-queue");
     }
-
   } catch (error) {
     console.error("❌ Error handling incoming call:", error);
-    twiml.say("We are experiencing technical difficulties. Please try again later.");
+    twiml.say(
+      "We are experiencing technical difficulties. Please try again later."
+    );
   }
 
   res.type("text/xml").send(twiml.toString());

@@ -1,32 +1,31 @@
-const Agent = require('../models/Agent');
-const User = require('../models/User');
-const { createSuccessResponse, createErrorResponse } = require('../utils/helpers');
-const { AGENT_STATUS } = require('../utils/constants');
-const { getRedisClient } = require('../config/redis');
+const Agent = require("../models/Agent");
+const User = require("../models/User");
+const {
+  createSuccessResponse,
+  createErrorResponse,
+} = require("../utils/helpers");
+const { AGENT_STATUS } = require("../utils/constants");
+const { getRedisClient } = require("../config/redis");
 
 // Get all agents
 const getAgents = async (req, res) => {
   try {
     const { status, department, isOnline } = req.query;
-    
+
     // Build filter
     const filter = {};
     if (status) filter.status = status;
-    if (isOnline !== undefined) filter['availability.isOnline'] = isOnline === 'true';
-    
-    let agents = await Agent.find(filter)
-      .populate('userId', 'username email profile')
-      .sort({ 'availability.lastStatusChange': -1 });
+
+    let agents = await User.find(filter).sort({ createdAt: -1 });
 
     // Filter by department if specified
     if (department) {
-      agents = agents.filter(agent => 
-        agent.userId.profile?.department === department
+      agents = agents.filter(
+        (agent) => agent.userId.profile?.department === department
       );
     }
 
-    res.status(200).json({agents});
-
+    res.status(200).json({ agents });
   } catch (error) {
     res.status(500).json(createErrorResponse(error.message));
   }
@@ -36,16 +35,17 @@ const getAgents = async (req, res) => {
 const getAgentById = async (req, res) => {
   try {
     const { agentId } = req.params;
-    
-    const agent = await Agent.findOne({ agentId })
-      .populate('userId', 'username email profile');
+
+    const agent = await Agent.findOne({ agentId }).populate(
+      "userId",
+      "username email profile"
+    );
 
     if (!agent) {
-      return res.status(404).json(createErrorResponse('Agent not found'));
+      return res.status(404).json(createErrorResponse("Agent not found"));
     }
 
     res.json(createSuccessResponse(agent));
-
   } catch (error) {
     res.status(500).json(createErrorResponse(error.message));
   }
@@ -58,13 +58,13 @@ const updateAgentStatus = async (req, res) => {
     const userId = req.user._id;
 
     let agent = await Agent.findOne({ userId });
-    
+
     if (!agent) {
       // Create agent record if doesn't exist
       agent = new Agent({
         userId,
         agentId: `AGENT_${userId.toString().slice(-6).toUpperCase()}`,
-        status
+        status,
       });
     } else {
       agent.status = status;
@@ -77,13 +77,16 @@ const updateAgentStatus = async (req, res) => {
 
     // Update real-time status in Redis
     const redis = getRedisClient();
-    await redis.setEx(`agent:${agent.agentId}:status`, 3600, JSON.stringify({
-      status,
-      timestamp: new Date().toISOString()
-    }));
+    await redis.setEx(
+      `agent:${agent.agentId}:status`,
+      3600,
+      JSON.stringify({
+        status,
+        timestamp: new Date().toISOString(),
+      })
+    );
 
-    res.json(createSuccessResponse(agent, 'Agent status updated successfully'));
-
+    res.json(createSuccessResponse(agent, "Agent status updated successfully"));
   } catch (error) {
     res.status(500).json(createErrorResponse(error.message));
   }
@@ -99,10 +102,9 @@ const updateAgentSkills = async (req, res) => {
       { userId },
       { $set: { skills } },
       { new: true, upsert: true, runValidators: true }
-    ).populate('userId', 'username email profile');
+    ).populate("userId", "username email profile");
 
-    res.json(createSuccessResponse(agent, 'Agent skills updated successfully'));
-
+    res.json(createSuccessResponse(agent, "Agent skills updated successfully"));
   } catch (error) {
     res.status(500).json(createErrorResponse(error.message));
   }
@@ -116,18 +118,18 @@ const getAgentPerformance = async (req, res) => {
 
     const agent = await Agent.findOne({ agentId });
     if (!agent) {
-      return res.status(404).json(createErrorResponse('Agent not found'));
+      return res.status(404).json(createErrorResponse("Agent not found"));
     }
 
     // Get call statistics from Call model
-    const Call = require('../models/Call');
+    const Call = require("../models/Call");
     const filter = {
-      'agentInfo.agentId': agent.userId,
-      'callDetails.startTime': {}
+      "agentInfo.agentId": agent.userId,
+      "callDetails.startTime": {},
     };
 
-    if (startDate) filter['callDetails.startTime'].$gte = new Date(startDate);
-    if (endDate) filter['callDetails.startTime'].$lte = new Date(endDate);
+    if (startDate) filter["callDetails.startTime"].$gte = new Date(startDate);
+    if (endDate) filter["callDetails.startTime"].$lte = new Date(endDate);
 
     const callStats = await Call.aggregate([
       { $match: filter },
@@ -135,13 +137,13 @@ const getAgentPerformance = async (req, res) => {
         $group: {
           _id: null,
           totalCalls: { $sum: 1 },
-          totalTalkTime: { $sum: '$callDetails.duration' },
-          avgCallDuration: { $avg: '$callDetails.duration' },
+          totalTalkTime: { $sum: "$callDetails.duration" },
+          avgCallDuration: { $avg: "$callDetails.duration" },
           completedCalls: {
-            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] }
-          }
-        }
-      }
+            $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] },
+          },
+        },
+      },
     ]);
 
     const performance = {
@@ -150,12 +152,11 @@ const getAgentPerformance = async (req, res) => {
         totalCalls: 0,
         totalTalkTime: 0,
         avgCallDuration: 0,
-        completedCalls: 0
-      }
+        completedCalls: 0,
+      },
     };
 
     res.json(createSuccessResponse(performance));
-
   } catch (error) {
     res.status(500).json(createErrorResponse(error.message));
   }
@@ -171,16 +172,17 @@ const setAgentAvailability = async (req, res) => {
       { userId },
       {
         $set: {
-          'availability.isOnline': isOnline,
-          'availability.lastStatusChange': new Date(),
-          'availability.scheduledBreaks': scheduledBreaks || []
-        }
+          "availability.isOnline": isOnline,
+          "availability.lastStatusChange": new Date(),
+          "availability.scheduledBreaks": scheduledBreaks || [],
+        },
       },
       { new: true, upsert: true }
     );
 
-    res.json(createSuccessResponse(agent, 'Agent availability updated successfully'));
-
+    res.json(
+      createSuccessResponse(agent, "Agent availability updated successfully")
+    );
   } catch (error) {
     res.status(500).json(createErrorResponse(error.message));
   }
@@ -192,5 +194,5 @@ module.exports = {
   updateAgentStatus,
   updateAgentSkills,
   getAgentPerformance,
-  setAgentAvailability
+  setAgentAvailability,
 };
