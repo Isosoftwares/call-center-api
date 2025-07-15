@@ -37,9 +37,9 @@ const loginValidation = [
 // Routes
 router.post("/register", registerValidation, handleValidationErrors, register);
 router.post("/login", loginValidation, login);
-router.get("/profile", getProfile);
+router.get("/profile/:userId", getProfile);
 router.get("/refresh-token/:userId", getRefreshToken);
-router.put("/profile", updateProfile);
+router.patch("/profile", updateProfile);
 router.post("/seed", seedDatabase);
 router.patch("/change-pass", changePassword);
 

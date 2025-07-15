@@ -13,8 +13,8 @@ const {
 router.post("/", createPhoneNumber);
 router.get("/", getAllPhoneNumbers);
 router.get("/one/:id", getPhoneNumberById);
-router.get("/one-by-phone/:id", getOnePhoneNumber);
+router.get("/one-by-phone/:phoneNumber", getOnePhoneNumber);
 router.patch("/update/:id", updatePhoneNumber);
-router.delete("/:id", deletePhoneNumber);
+router.delete("/delete/:id", deletePhoneNumber);
 
 module.exports = router;

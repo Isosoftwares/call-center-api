@@ -79,7 +79,7 @@ const changePassword = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "Password changed successfully",
+      message: "Password updated successfully",
     });
   } catch (error) {
     res.status(500).json(createErrorResponse("Error changing password"));
@@ -169,8 +169,10 @@ const getRefreshToken = async (req, res) => {
 // Get current user profile
 const getProfile = async (req, res) => {
   try {
-    const sanitizedUser = sanitizeUser(req.user);
-    res.json(createSuccessResponse(sanitizedUser));
+    const {userId} = req.params;
+
+    const user = await User.findById(userId).exec();
+    res.json(createSuccessResponse(user));
   } catch (error) {
     res.status(500).json(createErrorResponse(error.message));
   }
@@ -179,10 +181,10 @@ const getProfile = async (req, res) => {
 // Update user profile
 const updateProfile = async (req, res) => {
   try {
-    const { profile } = req.body;
+    const { profile, userId } = req.body;
 
     const user = await User.findByIdAndUpdate(
-      req.user._id,
+      userId,
       { $set: { profile } },
       { new: true, runValidators: true }
     );

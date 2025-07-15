@@ -7,6 +7,10 @@ const phoneNumberSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    name: {
+      type: String,
+      required: true,
+    },
     twilioSid: {
       type: String,
       required: false,

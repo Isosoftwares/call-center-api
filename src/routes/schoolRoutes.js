@@ -12,7 +12,7 @@ const {
 router.post("/", createSchool);
 router.get("/", getAllSchools);
 router.get("/one/:id", getSchoolById);
-router.put("/update/:id", updateSchool);
+router.patch("/update/:id", updateSchool);
 router.delete("/delete/:id", deleteSchool);
 
 module.exports = router;

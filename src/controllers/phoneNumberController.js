@@ -5,8 +5,11 @@ const PhoneNumber = require("../models/PhoneNumber");
 const createPhoneNumber = async (req, res) => {
   try {
     const phoneNumber = await PhoneNumber.create(req.body);
-    res.status(201).json(phoneNumber);
+    res
+      .status(201)
+      .json({ phoneNumber, message: "Phone number added successfully" });
   } catch (error) {
+    console.log(error)
     res.status(400).json({ error: error.message });
   }
 };
@@ -18,8 +21,10 @@ const getAllPhoneNumbers = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const { categoryId, schoolId } = req.query;
-    const filter = {};
+    const { categoryId, schoolId, phoneNumber } = req.query;
+    const filter = {
+      phoneNumber: { $regex: phoneNumber || "", $options: "i" },
+    };
     if (categoryId) filter.categoryId = categoryId;
     if (schoolId) filter.schoolId = schoolId;
 
@@ -99,7 +104,9 @@ const updatePhoneNumber = async (req, res) => {
       return res.status(404).json({ error: "Phone number not found" });
     }
 
-    res.status(200).json(phoneNumber);
+    res
+      .status(200)
+      .json({ phoneNumber, message: "Phone Number updated successfully" });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -126,5 +133,5 @@ module.exports = {
   getPhoneNumberById,
   updatePhoneNumber,
   deletePhoneNumber,
-  getOnePhoneNumber
+  getOnePhoneNumber,
 };

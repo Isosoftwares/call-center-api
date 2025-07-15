@@ -7,12 +7,13 @@ const Agent = require('../src/models/Agent');
 const Queue = require('../src/models/Queue');
 const PhoneNumber = require('../src/models/PhoneNumber');
 const { USER_ROLES, AGENT_STATUS, QUEUE_STRATEGY } = require('../src/utils/constants');
+const Call = require('../src/models/Call');
 
 const seedData = {
   users: [
     {
       username: 'admin',
-      email: 'admin@callcenter.com',
+      email: 'admin@gmail.com',
       password: 'admin123',
       role: USER_ROLES.ADMIN,
       profile: {
@@ -23,7 +24,7 @@ const seedData = {
     },
     {
       username: 'supervisor1',
-      email: 'supervisor@callcenter.com',
+      email: 'supervisor@gmail.com',
       password: 'super123',
       role: USER_ROLES.SUPERVISOR,
       profile: {
@@ -34,7 +35,7 @@ const seedData = {
     },
     {
       username: 'agent1',
-      email: 'agent1@callcenter.com',
+      email: 'agent1@gmail.com',
       password: 'agent123',
       role: USER_ROLES.AGENT,
       profile: {
@@ -46,7 +47,7 @@ const seedData = {
     },
     {
       username: 'agent2',
-      email: 'agent2@callcenter.com',
+      email: 'agent2@gmail.com',
       password: 'agent123',
       role: USER_ROLES.AGENT,
       profile: {
@@ -112,14 +113,15 @@ const seedDatabase = async () => {
       User.deleteMany({}),
       Agent.deleteMany({}),
       Queue.deleteMany({}),
-      PhoneNumber.deleteMany({})
+      PhoneNumber.deleteMany({}),
+      Call.deleteMany({})
     ]);
     console.log('Cleared existing data');
 
     // Create users
     const createdUsers = [];
     for (const userData of seedData.users) {
-      const hashedPassword = await bcrypt.hash(userData.password, 12);
+      const hashedPassword = await bcrypt.hash(userData.password, 10);
       const user = new User({
         ...userData,
         password: hashedPassword

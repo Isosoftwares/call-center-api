@@ -1,12 +1,11 @@
 const express = require("express");
 const School = require("../models/School"); // Adjust path as needed
 
-
 // Create school
 const createSchool = async (req, res) => {
   try {
     const school = await School.create(req.body);
-    res.status(201).json(school);
+    res.status(201).json({ school, message: "School added successfully" });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -16,7 +15,7 @@ const createSchool = async (req, res) => {
 const getAllSchools = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = parseInt(req.query.limit) || 100;
     const skip = (page - 1) * limit;
 
     const schools = await School.find()
@@ -52,7 +51,7 @@ const getSchoolById = async (req, res) => {
       return res.status(404).json({ error: "School not found" });
     }
 
-    res.status(200).json(school);
+    res.status(200).json({ school });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -70,7 +69,7 @@ const updateSchool = async (req, res) => {
       return res.status(404).json({ error: "School not found" });
     }
 
-    res.status(200).json(school);
+    res.status(200).json({ school, message: "Schhol updated successfully" });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

@@ -7,7 +7,7 @@ const router = express.Router();
 const createCategory = async (req, res) => {
   try {
     const category = await Category.create(req.body);
-    res.status(201).json(category);
+    res.status(201).json({category, message: "Category added successfully"});
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -17,7 +17,7 @@ const createCategory = async (req, res) => {
 const getAllCategories = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = parseInt(req.query.limit) || 100;
     const skip = (page - 1) * limit;
 
     const categories = await Category.find()
@@ -71,7 +71,7 @@ const updateCategory = async (req, res) => {
       return res.status(404).json({ error: "Category not found" });
     }
 
-    res.status(200).json(category);
+    res.status(200).json({category, message: "Category updated"});
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
