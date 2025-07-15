@@ -1,52 +1,38 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const phoneNumberSchema = new mongoose.Schema({
-  phoneNumber: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  twilioSid: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  friendlyName: String,
-  capabilities: {
-    voice: Boolean,
-    sms: Boolean,
-    mms: Boolean
-  },
-  configuration: {
-    voiceUrl: String,
-    voiceMethod: {
+const phoneNumberSchema = new mongoose.Schema(
+  {
+    phoneNumber: {
       type: String,
-      default: 'POST'
+      required: true,
+      unique: true,
     },
-    statusCallback: String,
-    statusCallbackMethod: {
+    twilioSid: {
       type: String,
-      default: 'POST'
-    }
-  },
-  assignment: {
-    queueId: String,
-    department: String,
-    purpose: String // main, support, sales, etc.
-  },
-  usage: {
-    totalCalls: {
-      type: Number,
-      default: 0
+      required: false,
     },
-    lastUsed: Date
+    categoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      ref: "Category",
+    },
+    schoolId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      ref: "School",
+    },
+    report: {
+      type: String,
+      required: false,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
   },
-  isActive: {
-    type: Boolean,
-    default: true
+  {
+    timestamps: true,
   }
-}, {
-  timestamps: true
-});
+);
 
-module.exports = mongoose.model('PhoneNumber', phoneNumberSchema);
+module.exports = mongoose.model("PhoneNumber", phoneNumberSchema);

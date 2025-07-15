@@ -283,19 +283,16 @@ const initializeSocket = (server) => {
     // Join role-based rooms
     socket.join(`role:${socket.userRole}`);
 
-    // If user is an agent, add to Redis
-    if (socket.userRole === "agent") {
-      await addAgentToRedis(socket.userId, {
-        socketId: socket.id,
-        userRole: socket.userRole,
-      });
+    await addAgentToRedis(socket.userId, {
+      socketId: socket.id,
+      userRole: socket.userRole,
+    });
 
-      // Broadcast agent availability update
-      socket.to("role:supervisor").to("role:admin").emit("agent:connected", {
-        agentId: socket.userId,
-        timestamp: new Date().toISOString(),
-      });
-    }
+    // Broadcast agent availability update
+    socket.to("role:supervisor").to("role:admin").emit("agent:connected", {
+      agentId: socket.userId,
+      timestamp: new Date().toISOString(),
+    });
 
     // Handle agent status updates
     socket.on("agent:status-update", async (data) => {

@@ -1,5 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const bcrypt = require("bcrypt");
+
 const {
   createSuccessResponse,
   createErrorResponse,
@@ -28,11 +30,12 @@ const register = async (req, res) => {
     if (existingUser) {
       return res.status(409).json(createErrorResponse("User already exists"));
     }
+    const encryptedPassword = await bcrypt.hash(password, 10);
 
     const user = new User({
       username,
       email,
-      password,
+      password: encryptedPassword,
       role,
       profile,
     });
@@ -56,7 +59,33 @@ const register = async (req, res) => {
   }
 };
 
-// Login user
+const changePassword = async (req, res) => {
+  try {
+    const { userId, password } = req.body;
+    if (!userId || !password) {
+      return res
+        .status(400)
+        .json(createErrorResponse("User ID and password are required"));
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json(createErrorResponse("User not found"));
+    }
+
+    const encryptedPassword = await bcrypt.hash(password, 10);
+    user.password = encryptedPassword;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Password changed successfully",
+    });
+  } catch (error) {
+    res.status(500).json(createErrorResponse("Error changing password"));
+  }
+};
+
 const login = async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -65,8 +94,13 @@ const login = async (req, res) => {
       $or: [{ email: username }, { username }],
     });
 
-
     if (!user) {
+      return res.status(401).json(createErrorResponse("Invalid credentials"));
+    }
+
+    // Compare password with hashed password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
       return res.status(401).json(createErrorResponse("Invalid credentials"));
     }
 
@@ -87,7 +121,7 @@ const login = async (req, res) => {
       )
     );
   } catch (error) {
-    console.log(error)
+    console.log(error);
     res.status(500).json(createErrorResponse(error.message));
   }
 };
@@ -167,5 +201,6 @@ module.exports = {
   login,
   getProfile,
   updateProfile,
-  getRefreshToken
+  getRefreshToken,
+  changePassword,
 };

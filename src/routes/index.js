@@ -11,6 +11,8 @@ const analyticsRoutes = require('./analyticsRoutes');
 const notificationRoutes = require('./notificationRoutes');
 const webhookRoutes = require('./webhookRoutes');
 const softPhoneRoutes = require('./softPhoneRoutes');
+const categoryRoutes = require('./categoryRoutes');
+const schoolRoutes = require('./schoolRoutes');
 
 // Mount routes
 router.use('/auth', authRoutes);
@@ -20,6 +22,8 @@ router.use('/queues', queueRoutes);
 router.use('/phone-numbers', phoneNumberRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/categories', categoryRoutes);
+router.use('/schools', schoolRoutes);
 
 // Webhook routes (no auth required)
 router.use('/webhooks', webhookRoutes);

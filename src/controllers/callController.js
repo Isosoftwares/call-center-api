@@ -14,6 +14,7 @@ const {
 // const { CALL_STATUS } = require("../utils/constants");
 const { v4: uuidv4 } = require("uuid");
 const { default: mongoose } = require("mongoose");
+const PhoneNumber = require("../models/PhoneNumber");
 const { VoiceResponse } = require("twilio").twiml;
 
 const CALL_STATUS = {
@@ -43,9 +44,26 @@ const formatPhoneNumber = (phone) => {
 // Create outbound call
 const createCall = async (req, res) => {
   try {
-    const { phoneNumber, customerId, priority = 0 } = req.body;
+    const {
+      phoneNumber,
+      customerId,
+      priority = 0,
+      twilioPhoneNumber,
+    } = req.body;
     const agentId = req.user._id;
 
+    if (!phoneNumber || !twilioPhoneNumber) {
+      return res
+        .status(400)
+        .json(
+          createErrorResponse(
+            "Phone number and Twilio phone number are required"
+          )
+        );
+    }
+    const twilioPhoneNumberDB = await PhoneNumber.findOne({
+      phoneNumber: formatPhoneNumber(twilioPhoneNumber),
+    });
     // Generate unique call ID
     const callId = uuidv4();
 
@@ -59,11 +77,8 @@ const createCall = async (req, res) => {
         customerId,
         priority,
       },
-      agentInfo: {
-        agentId,
-        agentName: `${req.user.profile?.firstName} ${req.user.profile?.lastName}`,
-        department: req.user.profile?.department,
-      },
+      assignedAgent: agentId,
+      phoneNumberId: twilioPhoneNumberDB._id || null,
       callDetails: {
         startTime: new Date(),
       },
@@ -74,7 +89,7 @@ const createCall = async (req, res) => {
     // Initiate Twilio call
     const callOptions = createCallOptions(
       phoneNumber,
-      process.env.TWILIO_PHONE_NUMBER,
+      twilioPhoneNumber,
       `${process.env.BASE_URL}/api/webhooks/call-connect/${callId}`
     );
 
@@ -120,13 +135,13 @@ const getCallHistory = async (req, res) => {
       if (startDate) filter["callDetails.startTime"].$gte = new Date(startDate);
       if (endDate) filter["callDetails.startTime"].$lte = new Date(endDate);
     }
-    console.log("📜 Call history filter:", filter, agentId);
 
     const calls = await Call.find(filter)
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
-      .populate("assignedAgent", "username profile");
+      .populate("assignedAgent", "username profile")
+      .populate("phoneNumberId",);
 
     const total = await Call.countDocuments(filter);
 
@@ -231,6 +246,10 @@ const handleIncomingCall = async (req, res) => {
 
     console.log("📞 Incoming call:", { From, To, CallSid });
 
+    const twilioPhoneNumberDB = await PhoneNumber.findOne({
+      phoneNumber: formatPhoneNumber(To),
+    });
+
     // Create call record
     const callId = uuidv4();
     const call = new Call({
@@ -239,6 +258,7 @@ const handleIncomingCall = async (req, res) => {
       phoneNumber: From,
       direction: "inbound",
       status: CALL_STATUS.QUEUED,
+      phoneNumberId: twilioPhoneNumberDB ? twilioPhoneNumberDB._id : null,
       callDetails: {
         startTime: new Date(),
       },

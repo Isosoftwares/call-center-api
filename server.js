@@ -12,7 +12,7 @@ const initializeServer = async () => {
     await connectRedis();
     
     const server = app.listen(PORT, () => {
-      logger.info(`Server running on port ${PORT}`);
+      console.log(`Server running on port ${PORT}`);
     });
 
     // Initialize WebSocket
@@ -28,9 +28,9 @@ const initializeServer = async () => {
 
 // Graceful shutdown
 const gracefulShutdown = (server) => (signal) => {
-  logger.info(`Received ${signal}. Shutting down gracefully...`);
+  console.log(`Received ${signal}. Shutting down gracefully...`);
   server.close(() => {
-    logger.info('Server closed');
+    console.log('Server closed');
     process.exit(0);
   });
 };

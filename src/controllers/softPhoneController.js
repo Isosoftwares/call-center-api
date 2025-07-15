@@ -5,7 +5,13 @@ const jwt = require("jsonwebtoken");
 const twilio = require("twilio");
 const Call = require("../models/Call");
 const { routeCall } = require("../services/callRoutingService"); // Import your call routing logic
-const { selectAgentForCall, getAvailableAgentsFromRedis, assignCallToAgent, releaseAgentFromCall } = require("../websocket/socketHandlers");
+const {
+  selectAgentForCall,
+  getAvailableAgentsFromRedis,
+  assignCallToAgent,
+  releaseAgentFromCall,
+} = require("../websocket/socketHandlers");
+const PhoneNumber = require("../models/PhoneNumber");
 
 // Initialize Twilio client
 const client = twilio(
@@ -21,6 +27,20 @@ const CALL_STATUS = {
   FAILED: "failed",
   BUSY: "busy",
   NO_ANSWER: "no-answer",
+};
+
+const formatPhoneNumber = (phone) => {
+  if (!phone) return null;
+
+  // Remove any spaces, dashes, parentheses
+  let cleaned = phone.replace(/[\s\-\(\)]/g, "");
+
+  // Add + if missing
+  if (!cleaned.startsWith("+")) {
+    cleaned = "+" + cleaned;
+  }
+
+  return cleaned;
 };
 
 // Generate Twilio Access Token for WebRTC
@@ -82,6 +102,10 @@ const handleIncomingCall = async (req, res) => {
 
     console.log("📞 Incoming call new one:", { From, To, CallSid, CallStatus });
 
+    const twilioPhoneNumberDB = await PhoneNumber.findOne({
+      phoneNumber: formatPhoneNumber(To),
+    });
+
     // Create call record
     const callId = uuidv4();
     const call = new Call({
@@ -90,6 +114,7 @@ const handleIncomingCall = async (req, res) => {
       phoneNumber: From,
       direction: "inbound",
       status: CALL_STATUS.QUEUED,
+      phoneNumberId: twilioPhoneNumberDB ? twilioPhoneNumberDB._id : null,
       callDetails: {
         startTime: new Date(),
         callerNumber: From,
@@ -104,10 +129,7 @@ const handleIncomingCall = async (req, res) => {
     console.log("📊 Routing result:", routingResult);
 
     if (routingResult?.agentId) {
-      console.log(
-        "📲 Routing to softphone agent:",
-        routingResult.agentId
-      );
+      console.log("📲 Routing to softphone agent:", routingResult.agentId);
 
       // Update call status
       await Call.findOneAndUpdate(
@@ -115,14 +137,13 @@ const handleIncomingCall = async (req, res) => {
         {
           status: CALL_STATUS.RINGING,
           assignedAgent: routingResult.agentId,
-          "agentInfo.agentId": routingResult.agentId,
         }
       );
 
       // Route to softphone client instead of phone number
-      twiml.say(
-        "Thank you for calling. We're connecting you to an available agent."
-      );
+      // twiml.say(
+      //   "Thank you for calling. We're connecting you to an available agent."
+      // );
 
       const dial = twiml.dial({
         action: "/api/calls/dial-status",
@@ -137,22 +158,23 @@ const handleIncomingCall = async (req, res) => {
     } else {
       console.log("ℹ️ No agent available, enqueuing call.");
 
-      await Call.findOneAndUpdate({ callId }, { status: CALL_STATUS.QUEUED });
+      await Call.findOneAndUpdate({ callId }, { status: CALL_STATUS.NO_ANSWER, comment: "Missed call" });
 
-      twiml.say(
-        "All our agents are currently busy. Please hold while we connect you to the next available agent."
-      );
-      twiml.enqueue("support-queue", {
-        action: "/api/calls/queue-status",
-        method: "POST",
-        waitUrl: "/api/calls/hold-music",
-      });
+      twiml.say("Call ended");
+      twiml.hangup();
+      // twiml.enqueue("support-queue", {
+      //   action: "/api/calls/queue-status",
+      //   method: "POST",
+      //   waitUrl: "/api/calls/hold-music",
+      // });
+   
+      return res.type("text/xml").send(twiml.toString());
     }
   } catch (error) {
     console.error("❌ Error handling incoming call:", error);
-    twiml.say(
-      "We are experiencing technical difficulties. Please try again later."
-    );
+    // twiml.say(
+    //   "We are experiencing technical difficulties. Please try again later."
+    // );
     twiml.hangup();
   }
 
@@ -172,6 +194,9 @@ const handleOutboundCall = async (req, res) => {
 
     // Called will be the phone number the agent wants to call
     // Caller will be the agent's identity
+    const twilioPhoneNumberDB = await PhoneNumber.findOne({
+      phoneNumber: formatPhoneNumber(Caller),
+    });
 
     if (Called && Called.startsWith("+")) {
       // This is a call to a regular phone number
@@ -192,6 +217,7 @@ const handleOutboundCall = async (req, res) => {
         phoneNumber: Called,
         direction: "outbound",
         status: CALL_STATUS.RINGING,
+        phoneNumberId: twilioPhoneNumberDB ? twilioPhoneNumberDB._id : null,
         assignedAgent: Caller.split(":")[1], // Extract agent ID from Caller
         callDetails: {
           startTime: new Date(),
@@ -221,8 +247,12 @@ const handleDialStatus = async (req, res) => {
   const twiml = new VoiceResponse();
 
   try {
-    const { DialCallStatus = "completed", CallSid, DialCallDuration, RecordingUrl } =
-      req.body;
+    const {
+      DialCallStatus = "completed",
+      CallSid,
+      DialCallDuration,
+      RecordingUrl,
+    } = req.body;
 
     console.log("📞 Dial status:", {
       DialCallStatus,
@@ -232,7 +262,7 @@ const handleDialStatus = async (req, res) => {
 
     // Find the call record
     const call = await Call.findOne({ twilioCallSid: CallSid });
-    
+
     if (!call) {
       console.error("❌ Call record not found for CallSid:", CallSid);
       twiml.say("We're experiencing technical difficulties.");
@@ -254,7 +284,7 @@ const handleDialStatus = async (req, res) => {
     switch (DialCallStatus) {
       case "completed":
         console.log("✅ Softphone call completed successfully");
-        
+
         // Update final call status
         await Call.findOneAndUpdate(
           { twilioCallSid: CallSid },
@@ -263,15 +293,15 @@ const handleDialStatus = async (req, res) => {
             "callDetails.endTime": new Date(),
           }
         );
-        
+
         // Release agent from call in Redis
         if (call.assignedAgent) {
           await releaseAgentFromCall(call.assignedAgent, {
             callId: call.callId,
-            completed: true
+            completed: true,
           });
         }
-        
+
         twiml.hangup();
         break;
 
@@ -279,14 +309,16 @@ const handleDialStatus = async (req, res) => {
       case "no-answer":
       case "failed":
       case "canceled":
-        console.log(`📞 Agent ${call.assignedAgent} unavailable (${DialCallStatus}), trying another agent`);
-        
+        console.log(
+          `📞 Agent ${call.assignedAgent} unavailable (${DialCallStatus}), trying another agent`
+        );
+
         // Release the current agent from the call
         if (call.assignedAgent) {
           await releaseAgentFromCall(call.assignedAgent, {
             callId: call.callId,
             failed: true,
-            reason: DialCallStatus
+            reason: DialCallStatus,
           });
         }
 
@@ -305,11 +337,17 @@ const handleDialStatus = async (req, res) => {
         const routingResult = await selectAgentForCallExcluding(excludeAgents);
 
         if (routingResult?.agentId) {
-          console.log("🎯 Routing to alternative agent:", routingResult.agentId);
+          console.log(
+            "🎯 Routing to alternative agent:",
+            routingResult.agentId
+          );
 
           // Track the failed agent
           const failedAgents = call.callDetails?.failedAgents || [];
-          if (call.assignedAgent && !failedAgents.includes(call.assignedAgent)) {
+          if (
+            call.assignedAgent &&
+            !failedAgents.includes(call.assignedAgent)
+          ) {
             failedAgents.push(call.assignedAgent);
           }
 
@@ -331,12 +369,12 @@ const handleDialStatus = async (req, res) => {
             callId: call.callId,
             twilioCallSid: CallSid,
             retryAttempt: true,
-            previousFailure: DialCallStatus
+            previousFailure: DialCallStatus,
           });
 
           // Route directly to the new agent
           twiml.say("Connecting you to another available agent.");
-          
+
           const dial = twiml.dial({
             action: "/api/calls/dial-status",
             method: "POST",
@@ -346,14 +384,16 @@ const handleDialStatus = async (req, res) => {
 
           // Dial to the new agent's softphone identity
           dial.client(routingResult.agentId);
-
         } else {
           // No other agents available, fall back to queue
           console.log("📞 No other agents available, falling back to queue");
-          
+
           // Track the failed agent
           const failedAgents = call.callDetails?.failedAgents || [];
-          if (call.assignedAgent && !failedAgents.includes(call.assignedAgent)) {
+          if (
+            call.assignedAgent &&
+            !failedAgents.includes(call.assignedAgent)
+          ) {
             failedAgents.push(call.assignedAgent);
           }
 
@@ -383,13 +423,13 @@ const handleDialStatus = async (req, res) => {
 
       default:
         console.log("📞 Unknown dial status:", DialCallStatus);
-        
+
         // Release current agent if assigned
         if (call.assignedAgent) {
           await releaseAgentFromCall(call.assignedAgent, {
             callId: call.callId,
             failed: true,
-            reason: `unknown_status_${DialCallStatus}`
+            reason: `unknown_status_${DialCallStatus}`,
           });
         }
 
@@ -407,14 +447,14 @@ const handleDialStatus = async (req, res) => {
           "We're experiencing connection issues. Please hold for the next available agent."
         );
         twiml.enqueue("support-queue", {
-          action: "/api/calls/queue-status", 
+          action: "/api/calls/queue-status",
           method: "POST",
           waitUrl: "/api/calls/hold-music",
         });
     }
   } catch (error) {
     console.error("❌ Error handling dial status:", error);
-    
+
     // Try to release any assigned agent on error
     try {
       const call = await Call.findOne({ twilioCallSid: CallSid });
@@ -422,7 +462,7 @@ const handleDialStatus = async (req, res) => {
         await releaseAgentFromCall(call.assignedAgent, {
           callId: call.callId,
           failed: true,
-          reason: "system_error"
+          reason: "system_error",
         });
       }
     } catch (releaseError) {
@@ -639,21 +679,21 @@ const selectAgentForCallExcluding = async (excludeAgentIds = []) => {
     const availableAgents = await getAvailableAgentsFromRedis();
 
     console.log("🔍 Available agents for call:", availableAgents);
-    
+
     if (!availableAgents.length) {
       return null;
     }
-    
+
     // Filter out excluded agents
     const filteredAgents = availableAgents.filter(
-      agent => !excludeAgentIds.includes(agent.agentId)
+      (agent) => !excludeAgentIds.includes(agent.agentId)
     );
-    
+
     if (!filteredAgents.length) {
       console.log("🚫 No agents available after excluding:", excludeAgentIds);
       return null;
     }
-    
+
     // Sort by total calls (ascending) then by last assigned time (ascending)
     // This ensures fair distribution
     filteredAgents.sort((a, b) => {
@@ -662,7 +702,7 @@ const selectAgentForCallExcluding = async (excludeAgentIds = []) => {
       }
       return a.lastAssigned - b.lastAssigned;
     });
-    
+
     return filteredAgents[0];
   } catch (error) {
     console.error("Error selecting agent for call (excluding):", error);
@@ -680,14 +720,14 @@ const handleHoldMusic = async (req, res) => {
 
     // Find the call record to check for previously assigned agent
     const call = await Call.findOne({ twilioCallSid: CallSid });
-    
+
     // Get list of agents to exclude (previously tried agents)
     const excludeAgents = [];
     if (call?.assignedAgent) {
       excludeAgents.push(call.assignedAgent);
       console.log("🚫 Excluding previously tried agent:", call.assignedAgent);
     }
-    
+
     // Also check for any failed assignment history
     if (call?.callDetails?.failedAgents) {
       excludeAgents.push(...call.callDetails.failedAgents);
@@ -698,8 +738,11 @@ const handleHoldMusic = async (req, res) => {
     const routingResult = await selectAgentForCallExcluding(excludeAgents);
 
     if (routingResult?.agentId) {
-      console.log("🎯 Different agent became available, connecting call:", routingResult.agentId);
-      
+      console.log(
+        "🎯 Different agent became available, connecting call:",
+        routingResult.agentId
+      );
+
       if (call) {
         // Track the previous agent as failed if there was one
         const failedAgents = call.callDetails?.failedAgents || [];
@@ -725,13 +768,13 @@ const handleHoldMusic = async (req, res) => {
           callId: call.callId,
           twilioCallSid: CallSid,
           fromQueue: true,
-          retryAttempt: true
+          retryAttempt: true,
         });
       }
 
       // Connect to the available agent
       twiml.say("An agent is now available. Connecting you now.");
-      
+
       const dial = twiml.dial({
         action: "/api/calls/dial-status",
         method: "POST",
@@ -741,11 +784,13 @@ const handleHoldMusic = async (req, res) => {
 
       // Dial to the agent's softphone identity
       dial.client(routingResult.agentId);
-
     } else {
       // No different agent available, continue with hold music
-      console.log("🎵 No different agent available, continuing hold music for:", CallSid);
-      
+      console.log(
+        "🎵 No different agent available, continuing hold music for:",
+        CallSid
+      );
+
       twiml.play(
         "http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.wav"
       );
@@ -756,10 +801,9 @@ const handleHoldMusic = async (req, res) => {
         "http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.wav"
       );
     }
-
   } catch (error) {
     console.error("❌ Error in hold music handler:", error);
-    
+
     // Fallback to standard hold music
     twiml.play(
       "http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.wav"
