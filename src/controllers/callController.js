@@ -141,7 +141,7 @@ const getCallHistory = async (req, res) => {
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .populate("assignedAgent", "username profile")
-      .populate("phoneNumberId",);
+      .populate("phoneNumberId");
 
     const total = await Call.countDocuments(filter);
 
@@ -297,6 +297,26 @@ const handleIncomingCall = async (req, res) => {
   res.type("text/xml").send(twiml.toString());
 };
 
+const addComment = async (req, res) => {
+  const { callId, comment } = req.body;
+
+  if (!callId || !comment)
+    return res.status(400).json({ message: "All fields are required" });
+
+  try {
+    const call = await Call.findById(callId);
+
+    if (!call) return res.status(400).json({ message: "No call log found" });
+
+    call.comment = comment;
+    await call.save();
+
+    res.status(200).json({ message: "Comment added successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
 module.exports = {
   createCall,
   getCallHistory,
@@ -304,4 +324,5 @@ module.exports = {
   updateCallStatus,
   terminateCall,
   handleIncomingCall,
+  addComment
 };

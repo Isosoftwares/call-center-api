@@ -7,7 +7,8 @@ const {
   getCallHistory,
   getActiveCalls,
   updateCallStatus,
-  terminateCall
+  terminateCall,
+  addComment
 } = require('../controllers/callController');
 const { authenticate, authorize } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
@@ -29,9 +30,10 @@ const updateCallValidation = [
 
 // Routes
 router.post('/', authenticate, createCallValidation, handleValidationErrors, createCall);
+router.post('/add-comment', addComment);
 router.get('/history', authenticate, getCallHistory);
 router.get('/active', authenticate, authorize(USER_ROLES.ADMIN, USER_ROLES.SUPERVISOR), getActiveCalls);
-router.put('/:callId', authenticate, updateCallValidation, handleValidationErrors, updateCallStatus);
+router.patch('/:callId', authenticate, updateCallValidation, handleValidationErrors, updateCallStatus);
 router.delete('/:callId', authenticate, terminateCall);
 
 module.exports = router;

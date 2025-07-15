@@ -1,6 +1,5 @@
 const express = require("express");
-const PhoneNumber = require("../models/PhoneNumber"); 
-
+const PhoneNumber = require("../models/PhoneNumber");
 
 // Create phone number
 const createPhoneNumber = async (req, res) => {
@@ -67,6 +66,24 @@ const getPhoneNumberById = async (req, res) => {
   }
 };
 
+const getOnePhoneNumber = async (req, res) => {
+  try {
+    const phoneNumber = await PhoneNumber.findOne(req.params.phoneNumber)
+      .populate("categoryId")
+      .populate("schoolId");
+
+    if (!phoneNumber) {
+      return res.status(404).json({ error: "Phone number not found" });
+    }
+
+    res.status(200).json({ phoneNumber });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: error.message, message: "Something went wrong" });
+  }
+};
+
 // Update phone number
 const updatePhoneNumber = async (req, res) => {
   try {
@@ -109,4 +126,5 @@ module.exports = {
   getPhoneNumberById,
   updatePhoneNumber,
   deletePhoneNumber,
+  getOnePhoneNumber
 };
