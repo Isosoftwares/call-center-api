@@ -100,7 +100,7 @@ const handleIncomingCall = async (req, res) => {
   try {
     const { From, To, CallSid, CallStatus } = req.body;
 
-    console.log("📞 Incoming call new one:", { From, To, CallSid, CallStatus });
+    console.log("full body incoming", req.body);
 
     const twilioPhoneNumberDB = await PhoneNumber.findOne({
       phoneNumber: formatPhoneNumber(To),
@@ -153,12 +153,16 @@ const handleIncomingCall = async (req, res) => {
         record: "record-from-answer",
       });
 
+
       // Dial to the agent's softphone identity
       dial.client(routingResult.agentId);
     } else {
       console.log("ℹ️ No agent available, enqueuing call.");
 
-      await Call.findOneAndUpdate({ callId }, { status: CALL_STATUS.NO_ANSWER, comment: "Missed call" });
+      await Call.findOneAndUpdate(
+        { callId },
+        { status: CALL_STATUS.NO_ANSWER, comment: "Missed call" }
+      );
 
       twiml.say("Call ended");
       twiml.hangup();
@@ -167,7 +171,7 @@ const handleIncomingCall = async (req, res) => {
       //   method: "POST",
       //   waitUrl: "/api/calls/hold-music",
       // });
-   
+
       return res.type("text/xml").send(twiml.toString());
     }
   } catch (error) {
@@ -186,11 +190,11 @@ const handleOutboundCall = async (req, res) => {
   const twiml = new VoiceResponse();
 
   try {
-    let { To, Caller } = req.body;
+    let { To, Caller, From, CallSid } = req.body;
 
     const Called = To;
 
-    console.log("📞 Outbound call from softphone:", { Called, Caller });
+    console.log("📞 Outbound call from softphone:", { Called, Caller, From });
 
     // Called will be the phone number the agent wants to call
     // Caller will be the agent's identity
@@ -203,7 +207,7 @@ const handleOutboundCall = async (req, res) => {
       console.log(`📲 Connecting agent ${Caller} to phone number ${Called}`);
 
       const dial = twiml.dial({
-        callerId: process.env.TWILIO_PHONE_NUMBER, // Your Twilio number
+        callerId: From, // Your Twilio number
         action: "/api/calls/outbound-status",
         method: "POST",
       });
@@ -217,12 +221,14 @@ const handleOutboundCall = async (req, res) => {
         phoneNumber: Called,
         direction: "outbound",
         status: CALL_STATUS.RINGING,
+        twilioCallSid: CallSid,
         phoneNumberId: twilioPhoneNumberDB ? twilioPhoneNumberDB._id : null,
         assignedAgent: Caller.split(":")[1], // Extract agent ID from Caller
         callDetails: {
           startTime: new Date(),
           agentId: Caller,
           targetNumber: Called,
+          twilioNumber: From,
         },
       });
       await call.save();
@@ -259,6 +265,9 @@ const handleDialStatus = async (req, res) => {
       CallSid,
       Duration: DialCallDuration,
     });
+
+    twiml.hangup();
+    return res.type("text/xml").send(twiml.toString());
 
     // Find the call record
     const call = await Call.findOne({ twilioCallSid: CallSid });

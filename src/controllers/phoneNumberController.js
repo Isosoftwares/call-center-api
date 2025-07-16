@@ -1,16 +1,41 @@
 const express = require("express");
 const PhoneNumber = require("../models/PhoneNumber");
 
-// Create phone number
+const formatPhoneNumber = (phone) => {
+  if (!phone) return null;
+
+  // Remove any spaces, dashes, parentheses
+  let cleaned = phone.replace(/[\s\-\(\)]/g, "");
+
+  // Add + if missing
+  if (!cleaned.startsWith("+")) {
+    cleaned = "+" + cleaned;
+  }
+
+  return cleaned;
+};
+
 const createPhoneNumber = async (req, res) => {
   try {
-    const phoneNumber = await PhoneNumber.create(req.body);
-    res
-      .status(201)
-      .json({ phoneNumber, message: "Phone number added successfully" });
+    const { phoneNumber, ...rest } = req.body;
+
+    if (!phoneNumber) {
+      return res.status(400).json({ message: "PhoneNumber is required" });
+    }
+
+    const formattedPhoneNumber = formatPhoneNumber(phoneNumber);
+
+    await PhoneNumber.create({
+      ...rest,
+      phoneNumber: formattedPhoneNumber,
+    });
+
+    res.status(201).json({
+      message: "Phone number added successfully",
+    });
   } catch (error) {
-    console.log(error)
-    res.status(400).json({ error: error.message });
+    console.error(error);
+    res.status(500).json({ error: error.message });
   }
 };
 
@@ -73,16 +98,21 @@ const getPhoneNumberById = async (req, res) => {
 
 const getOnePhoneNumber = async (req, res) => {
   try {
-    const phoneNumber = await PhoneNumber.findOne(req.params.phoneNumber)
+    const phoneNumber = await PhoneNumber.findOne({
+      phoneNumber: req.params.phoneNumber,
+    })
       .populate("categoryId")
       .populate("schoolId");
 
     if (!phoneNumber) {
+      console.log("no phone number found")
       return res.status(404).json({ error: "Phone number not found" });
     }
 
+
     res.status(200).json({ phoneNumber });
   } catch (error) {
+    console.log(error);
     res
       .status(500)
       .json({ error: error.message, message: "Something went wrong" });

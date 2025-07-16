@@ -41,7 +41,8 @@ const formatPhoneNumber = (phone) => {
   return cleaned;
 };
 
-// Get call history
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const getCallHistory = async (req, res) => {
   try {
     const {
@@ -49,20 +50,34 @@ const getCallHistory = async (req, res) => {
       limit = 20,
       status,
       phoneNumber,
+      twilioNumber,
       startDate,
       endDate,
       agentId,
     } = req.query;
-    console.log(req.query);
-    // Build filter
+
     const filter = {};
+
     if (agentId) {
       filter.assignedAgent = mongoose.Types.ObjectId(agentId);
     }
 
     if (status) filter.status = status;
-    if (phoneNumber)
-      filter.phoneNumber = { $regex: phoneNumber, $options: "i" };
+
+    if (phoneNumber) {
+      filter["callDetails.callerNumber"] = {
+        $regex: escapeRegex(phoneNumber),
+        $options: "i",
+      };
+    }
+
+    if (twilioNumber) {
+      filter["callDetails.twilioNumber"] = {
+        $regex: escapeRegex(twilioNumber),
+        $options: "i",
+      };
+    }
+
     if (startDate || endDate) {
       filter["callDetails.startTime"] = {};
       if (startDate) filter["callDetails.startTime"].$gte = new Date(startDate);
@@ -90,33 +105,52 @@ const getCallHistory = async (req, res) => {
       })
     );
   } catch (error) {
+    console.error(error);
     res.status(500).json(createErrorResponse(error.message));
   }
 };
 
-
-
 const addComment = async (req, res) => {
-  const { callId, comment } = req.body;
+  const { callId, comment, twilioNumber } = req.body;
 
-  if (!callId || !comment)
+  if (!callId || !comment) {
     return res.status(400).json({ message: "All fields are required" });
+  }
 
   try {
-    const call = await Call.findById(callId);
+    // Try to find the call by twilioCallSid
+    let call = await Call.findOne({ twilioCallSid: callId });
 
-    if (!call) return res.status(400).json({ message: "No call log found" });
+    if (!call && twilioNumber) {
+      // If not found, fallback: find by twilioNumber
+      const phoneNumber = await PhoneNumber.findOne({
+        phoneNumber: twilioNumber,
+      }).lean();
+
+      if (!phoneNumber) {
+        return res.status(400).json({ message: "No phone number found" });
+      }
+
+      call = await Call.findOne({ phoneNumberId: phoneNumber._id }).sort({
+        createdAt: -1,
+      });
+    }
+
+    if (!call) {
+      return res.status(404).json({ message: "No call log found" });
+    }
 
     call.comment = comment;
     await call.save();
 
-    res.status(200).json({ message: "Comment added successfully" });
+    return res.status(200).json({ message: "Comment added successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Something went wrong" });
+    console.error("addComment error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
 module.exports = {
   getCallHistory,
-  addComment
+  addComment,
 };

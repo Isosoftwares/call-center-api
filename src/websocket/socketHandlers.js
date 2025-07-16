@@ -116,6 +116,8 @@ const getAvailableAgentsFromRedis = async () => {
       })
     );
 
+    console.log("agent details", agentDetails)
+
     // Filter out agents with invalid status
     return agentDetails.filter((agent) => agent.status === "available");
   } catch (error) {
@@ -283,16 +285,17 @@ const initializeSocket = (server) => {
     // Join role-based rooms
     socket.join(`role:${socket.userRole}`);
 
-    await addAgentToRedis(socket.userId, {
-      socketId: socket.id,
-      userRole: socket.userRole,
-    });
+      await addAgentToRedis(socket.userId, {
+        socketId: socket.id,
+        userRole: "agent",
+      });
 
-    // Broadcast agent availability update
-    socket.to("role:supervisor").to("role:admin").emit("agent:connected", {
-      agentId: socket.userId,
-      timestamp: new Date().toISOString(),
-    });
+      // Broadcast agent availability update
+      socket.to("role:supervisor").to("role:admin").emit("agent:connected", {
+        agentId: socket.userId,
+        timestamp: new Date().toISOString(),
+      });
+    
 
     // Handle agent status updates
     socket.on("agent:status-update", async (data) => {
