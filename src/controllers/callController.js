@@ -47,7 +47,7 @@ const getCallHistory = async (req, res) => {
   try {
     const {
       page = 1,
-      limit = 20,
+      limit = 100,
       status,
       phoneNumber,
       twilioNumber,
