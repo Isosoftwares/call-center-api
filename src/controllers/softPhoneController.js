@@ -155,7 +155,7 @@ const handleIncomingCall = async (req, res) => {
 
       // Dial to the agent's softphone identity
       dial.client(routingResult.agentId);
-      assignCallToAgent(routingResult.agentId, call);
+      // assignCallToAgent(routingResult.agentId, call);
     } else {
       console.log("ℹ️ No agent available, enqueuing call.");
 
@@ -232,7 +232,7 @@ const handleOutboundCall = async (req, res) => {
         },
       });
       await call.save();
-      assignCallToAgent(call.assignedAgent, call);
+      // assignCallToAgent(call.assignedAgent, call);
     } else {
       // Invalid number
       twiml.say(
