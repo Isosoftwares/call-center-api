@@ -153,9 +153,9 @@ const handleIncomingCall = async (req, res) => {
         record: "record-from-answer",
       });
 
-
       // Dial to the agent's softphone identity
       dial.client(routingResult.agentId);
+      assignCallToAgent(routingResult.agentId, call);
     } else {
       console.log("ℹ️ No agent available, enqueuing call.");
 
@@ -232,6 +232,7 @@ const handleOutboundCall = async (req, res) => {
         },
       });
       await call.save();
+      assignCallToAgent(call.assignedAgent, call);
     } else {
       // Invalid number
       twiml.say(
@@ -267,10 +268,17 @@ const handleDialStatus = async (req, res) => {
     });
 
     twiml.hangup();
+    const call = await Call.findOne({ twilioCallSid: CallSid });
+    // Release agent from call in Redis
+    if (call.assignedAgent) {
+      await releaseAgentFromCall(call.assignedAgent, {
+        callId: call.callId,
+        completed: true,
+      });
+    }
     return res.type("text/xml").send(twiml.toString());
 
     // Find the call record
-    const call = await Call.findOne({ twilioCallSid: CallSid });
 
     if (!call) {
       console.error("❌ Call record not found for CallSid:", CallSid);
