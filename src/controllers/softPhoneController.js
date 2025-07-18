@@ -269,8 +269,11 @@ const handleDialStatus = async (req, res) => {
 
     twiml.hangup();
     const call = await Call.findOne({ twilioCallSid: CallSid });
+
+    console.log("call from release agent", call)
     // Release agent from call in Redis
     if (call.assignedAgent) {
+      console.log("Inside releasing agent function")
       await releaseAgentFromCall(call.assignedAgent, {
         callId: call.callId,
         completed: true,

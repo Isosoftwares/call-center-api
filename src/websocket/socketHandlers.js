@@ -116,7 +116,7 @@ const getAvailableAgentsFromRedis = async () => {
       })
     );
 
-    console.log("agent details", agentDetails)
+    console.log("agent details", agentDetails);
 
     // Filter out agents with invalid status
     return agentDetails.filter((agent) => agent.status === "available");
@@ -210,6 +210,8 @@ const releaseAgentFromCall = async (agentId) => {
     return false;
   }
 
+  console.log("agent to be released", agentId)
+
   try {
     const redis = getRedisClient();
 
@@ -219,15 +221,11 @@ const releaseAgentFromCall = async (agentId) => {
     pipeline.sRem(REDIS_KEYS.AGENTS_ON_CALL, agentId);
 
     // Update agent status
-    pipeline.hSet(
-      REDIS_KEYS.AGENT_STATUS(agentId),
-      "status",
-      "available",
-      "currentCall",
-      "",
-      "callEndTime",
-      new Date().toISOString()
-    );
+    pipeline.hSet(REDIS_KEYS.AGENT_STATUS(agentId), {
+      status: "available",
+      currentCall: "",
+      callEndTime: new Date().toISOString(),
+    });
 
     // Decrement current calls
     pipeline.hIncrBy(REDIS_KEYS.AGENT_CALLS(agentId), "currentCalls", -1);
@@ -285,17 +283,16 @@ const initializeSocket = (server) => {
     // Join role-based rooms
     socket.join(`role:${socket.userRole}`);
 
-      await addAgentToRedis(socket.userId, {
-        socketId: socket.id,
-        userRole: "agent",
-      });
+    await addAgentToRedis(socket.userId, {
+      socketId: socket.id,
+      userRole: "agent",
+    });
 
-      // Broadcast agent availability update
-      socket.to("role:supervisor").to("role:admin").emit("agent:connected", {
-        agentId: socket.userId,
-        timestamp: new Date().toISOString(),
-      });
-    
+    // Broadcast agent availability update
+    socket.to("role:supervisor").to("role:admin").emit("agent:connected", {
+      agentId: socket.userId,
+      timestamp: new Date().toISOString(),
+    });
 
     // Handle agent status updates
     socket.on("agent:status-update", async (data) => {
