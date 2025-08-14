@@ -210,7 +210,7 @@ const releaseAgentFromCall = async (agentId) => {
     return false;
   }
 
-  console.log("agent to be released", agentId)
+  console.log("agent to be released", agentId);
 
   try {
     const redis = getRedisClient();
@@ -355,7 +355,7 @@ const initializeSocket = (server) => {
 
       // If user is an agent, remove from Redis
       if (socket.userRole === "agent") {
-        await removeAgentFromRedis(socket.userId);
+        await removeAgentFromRedis(socket.userId.toString());
 
         // Broadcast agent disconnection
         socket
