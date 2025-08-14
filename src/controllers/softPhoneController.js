@@ -155,7 +155,7 @@ const handleIncomingCall = async (req, res) => {
 
       // Dial to the agent's softphone identity
       dial.client(routingResult.agentId);
-      // assignCallToAgent(routingResult.agentId, call);
+      assignCallToAgent(routingResult.agentId.toString(), call);
     } else {
       console.log("ℹ️ No agent available, enqueuing call.");
 
@@ -270,11 +270,11 @@ const handleDialStatus = async (req, res) => {
     twiml.hangup();
     const call = await Call.findOne({ twilioCallSid: CallSid });
 
-    console.log("call from release agent", call)
+    console.log("call from release agent", call);
     // Release agent from call in Redis
     if (call.assignedAgent) {
-      console.log("Inside releasing agent function")
-      await releaseAgentFromCall(call.assignedAgent, {
+      console.log("Inside releasing agent function");
+      await releaseAgentFromCall(call.assignedAgent.toString(), {
         callId: call.callId,
         completed: true,
       });
@@ -479,7 +479,7 @@ const handleDialStatus = async (req, res) => {
     try {
       const call = await Call.findOne({ twilioCallSid: CallSid });
       if (call?.assignedAgent) {
-        await releaseAgentFromCall(call.assignedAgent, {
+        await releaseAgentFromCall(call.assignedAgent.toString(), {
           callId: call.callId,
           failed: true,
           reason: "system_error",
