@@ -12,6 +12,7 @@ const {
   releaseAgentFromCall,
 } = require("../websocket/socketHandlers");
 const PhoneNumber = require("../models/PhoneNumber");
+const { tryCatch } = require("ramda");
 
 // Initialize Twilio client
 const client = twilio(
@@ -279,6 +280,16 @@ const handleDialStatus = async (req, res) => {
         completed: true,
       });
     }
+
+    // Update final call status
+    await Call.findOneAndUpdate(
+      { twilioCallSid: CallSid },
+      {
+        status: DialCallStatus || "",
+        "callDetails.endTime": new Date(),
+      }
+    );
+
     return res.type("text/xml").send(twiml.toString());
 
     // Find the call record

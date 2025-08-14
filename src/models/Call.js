@@ -34,7 +34,7 @@ const callSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: Object.values(CALL_STATUS),
+      // enum: Object.values(CALL_STATUS),
       default: CALL_STATUS.QUEUED,
     },
     callerInfo: {

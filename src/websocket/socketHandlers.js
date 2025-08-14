@@ -130,6 +130,8 @@ const selectAgentForCall = async () => {
   try {
     const availableAgents = await getAvailableAgentsFromRedis();
 
+    console.log(availableAgents, "inside select agent for a call")
+
     if (!availableAgents.length) {
       return null;
     }
